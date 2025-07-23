@@ -15,6 +15,9 @@ if 'step' not in st.session_state:
 # Wizard Stepper UI
 st.sidebar.title("Navigiere")
 steps = ["Agents konfigurieren", "Konsensregeln einstellen", "Diskussion starten"]
+# Initialisiere Session State für Step Selector
+if 'step_selector_radio' not in st.session_state:
+    st.session_state.step_selector_radio = st.session_state.step - 1
 # Ein horizontaler Stepper via Radio nur einmal definieren
 st.sidebar.radio(
     "Schritt im Prozess",  # Beschriftung
@@ -24,6 +27,8 @@ st.sidebar.radio(
 )
 
 # Konfiguiere die Session State Step Variable
+if st.session_state.step_selector_radio + 1 != st.session_state.step:
+    st.session_state.step = st.session_state.step_selector_radio + 1
 if st.session_state.step_selector_radio + 1 != st.session_state.step:
     st.session_state.step = st.session_state.step_selector_radio + 1
 
