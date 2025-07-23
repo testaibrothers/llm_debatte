@@ -3,6 +3,18 @@ import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
+# Initialisiere alle benötigten Session-Keys mit Default-Werten
+for key, default in {
+    "step": 1,
+    "step_selector_radio": 0,
+    "max_rounds_total": ConsensusConfig().MAX_TOTAL_ROUNDS,
+    "convergence_thres": ConsensusConfig().SIMILARITY_CUTOFF,
+    "divergence_rounds": ConsensusConfig().MAX_DIVERGENCE_ROUNDS,
+    "divergence_thresh": ConsensusConfig().NOVELTY_THRESHOLD,
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
+
 from consensus.consensus_config import ConsensusConfig
 from consensus.consensus_engine import ConsensusEngine
 from agents.openai_adapter import OpenAIAdapter
