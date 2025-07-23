@@ -18,3 +18,4 @@ class ConsensusConfig:
 
     # Logging
     log_level: str = "INFO"
+ 
