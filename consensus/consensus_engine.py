@@ -1,10 +1,11 @@
 # consensus/consensus_engine.py
 import os, sys
-# eine Ebene über dem Paket-Ordner hinzufügen, damit imports funktionieren
+# Eine Ebene über dem Paket-Ordner hinzufügen, damit 'utils' gefunden wird
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import logging
 import time
+import json
 from consensus.consensus_config import ConsensusConfig
 from utils.similarity import cosine_similarity
 
@@ -32,8 +33,7 @@ class ConsensusEngine:
         return sim <= self.cfg.divergence_threshold
 
     def has_converged(self, agree_block: dict) -> bool:
-        # JSON-basiertes Agree/Disagree prüfen
-        agreed = agree_block.get("agree", False)
+        agreed = agree_block.get("agree", False) if agree_block else False
         sim = self.similarity_log[-1] if self.similarity_log else 0.0
         return agreed and sim >= self.cfg.convergence_threshold
 
@@ -46,8 +46,8 @@ class ConsensusEngine:
         # Divergenz-Phase
         for _ in range(self.cfg.divergence_rounds):
             response = current.call(text)
-            # extrahiere JSON am Ende
             try:
+                # JSON-Block am Ende parsen
                 agree_block = json.loads(response.split("```json\n")[-1])
             except:
                 agree_block = {}
@@ -68,4 +68,5 @@ class ConsensusEngine:
             current, other = other, current
             round_counter += 1
 
+        # Rückgabe ohne agree_block
         return [(agent, txt) for agent, txt, _ in self.history]
