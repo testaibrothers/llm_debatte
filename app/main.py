@@ -11,99 +11,39 @@ from agents.gemini_adapter import GeminiAdapter
 # --- Session State Defaults ---
 if 'cfg' not in st.session_state:
     st.session_state.cfg = ConsensusConfig()
-if 'history' not in st.session_state:
-    st.session_state.history = []
+if 'topic' not in st.session_state:
+    st.session_state.topic = ""
 
-# --- Sidebar: Konsens-System konfigurieren ---
+# Sidebar: Einstellungen
 st.sidebar.title("Konsens-System konfigurieren")
+cfg = st.sidebar.experimental_singleton(lambda: st.session_state.cfg)
+# Agentenauswahl
+with st.sidebar.expander("LLM-Einstellungen"):
+    provider_a = st.selectbox("Agent A Anbieter", ["OpenAI", "Gemini"], key="provider_a")
+    model_a = st.selectbox("Agent A Modell", ["gpt-3.5-turbo", "gpt-4"] if provider_a=="OpenAI" else ["gemini-proto"], key="model_a")
+    st.text_area("Prompt Agent A", st.session_state.cfg.ROLE_PROMPT_A, key="prompt_a")
 
-# Kreativität
-st.sidebar.subheader("Kreativität")
-cfg = st.session_state.cfg
-cfg.TEMP_DIV = st.sidebar.slider(
-    "Temperatur (Divergenz)", 0.1, 2.0, cfg.TEMP_DIV, 0.05,
-    help=cfg.__dataclass_fields__['TEMP_DIV'].metadata['help']
-)
-cfg.TEMP_CONV = st.sidebar.slider(
-    "Temperatur (Konvergenz)", 0.1, 2.0, cfg.TEMP_CONV, 0.05,
-    help=cfg.__dataclass_fields__['TEMP_CONV'].metadata['help']
-)
+    provider_b = st.selectbox("Agent B Anbieter", ["OpenAI", "Gemini"], key="provider_b")
+    model_b = st.selectbox("Agent B Modell", ["gpt-3.5-turbo", "gpt-4"] if provider_b=="OpenAI" else ["gemini-proto"], key="model_b")
+    st.text_area("Prompt Agent B", st.session_state.cfg.ROLE_PROMPT_B, key="prompt_b")
 
-# Runden-Limits
-st.sidebar.subheader("Runden-Limits")
-cfg.MAX_DIVERGENCE_ROUNDS = st.sidebar.number_input(
-    "Max Divergenz-Runden", 1, 20, cfg.MAX_DIVERGENCE_ROUNDS,
-    help=cfg.__dataclass_fields__['MAX_DIVERGENCE_ROUNDS'].metadata['help']
-)
-cfg.MAX_CONVERGENCE_ROUNDS = st.sidebar.number_input(
-    "Max Konvergenz-Runden", 1, 20, cfg.MAX_CONVERGENCE_ROUNDS,
-    help=cfg.__dataclass_fields__['MAX_CONVERGENCE_ROUNDS'].metadata['help']
-)
-cfg.MAX_TOTAL_ROUNDS = st.sidebar.number_input(
-    "Max Gesamt-Runden", 1, 50, cfg.MAX_TOTAL_ROUNDS,
-    help=cfg.__dataclass_fields__['MAX_TOTAL_ROUNDS'].metadata['help']
-)
+with st.sidebar.expander("Konsens-Einstellungen"):
+    # Parameter
+    st.slider("Temp Divergenz", 0.1, 2.0, st.session_state.cfg.TEMP_DIV, 0.05, key="TEMP_DIV")
+    st.slider("Temp Konvergenz", 0.1, 2.0, st.session_state.cfg.TEMP_CONV, 0.05, key="TEMP_CONV")
+    st.number_input("Max Divergenz-Runden", 1, 20, st.session_state.cfg.MAX_DIVERGENCE_ROUNDS, key="MAX_DIVERGENCE_ROUNDS")
+    st.number_input("Max Konvergenz-Runden", 1, 20, st.session_state.cfg.MAX_CONVERGENCE_ROUNDS, key="MAX_CONVERGENCE_ROUNDS")
+    st.number_input("Max Gesamt-Runden", 1, 50, st.session_state.cfg.MAX_TOTAL_ROUNDS, key="MAX_TOTAL_ROUNDS")
+    st.slider("Similarity Cutoff", 0.7, 0.99, st.session_state.cfg.SIMILARITY_CUTOFF, 0.01, key="SIMILARITY_CUTOFF")
+    st.slider("Novelty Threshold", 0.05, 0.3, st.session_state.cfg.NOVELTY_THRESHOLD, 0.01, key="NOVELTY_THRESHOLD")
+    st.slider("Combo Bonus %", 0, 50, st.session_state.cfg.COMBO_BONUS_PERCENT, 1, key="COMBO_BONUS_PERCENT")
 
-# Metrik-Schwellen
-st.sidebar.subheader("Metrik-Schwellen")
-cfg.SIMILARITY_CUTOFF = st.sidebar.slider(
-    "Similarity Cutoff", 0.70, 0.99, cfg.SIMILARITY_CUTOFF, 0.01,
-    help=cfg.__dataclass_fields__['SIMILARITY_CUTOFF'].metadata['help']
-)
-cfg.NOVELTY_THRESHOLD = st.sidebar.slider(
-    "Novelty Threshold", 0.05, 0.30, cfg.NOVELTY_THRESHOLD, 0.01,
-    help=cfg.__dataclass_fields__['NOVELTY_THRESHOLD'].metadata['help']
-)
-cfg.COMBO_BONUS_PERCENT = st.sidebar.slider(
-    "Combo Bonus %", 0.0, 50.0, cfg.COMBO_BONUS_PERCENT, 1.0,
-    help=cfg.__dataclass_fields__['COMBO_BONUS_PERCENT'].metadata['help']
-)
-
-# Score-Gewichte
-st.sidebar.subheader("Score-Gewichte")
-weights = [
-    ('Nutzen', 'WEIGHT_NUTZEN'),
-    ('Risiko', 'WEIGHT_RISIKO'),
-    ('Kosten', 'WEIGHT_KOSTEN'),
-    ('Machbarkeit', 'WEIGHT_MACHB')
-]
-total = 0
-for label, field in weights:
-    value = st.sidebar.slider(
-        f"{label}", 0.0, 1.0, getattr(cfg, field), 0.05,
-        help=cfg.__dataclass_fields__[field].metadata['help']
-    )
-    setattr(cfg, field, value)
-    total += value
-# Normierung
-if total > 0:
-    for _, field in weights:
-        setattr(cfg, field, getattr(cfg, field) / total)
-
-# Prompts
-st.sidebar.subheader("Prompt-Texte")
-cfg.SYSTEM_PROMPT = st.sidebar.text_area(
-    "System Prompt", cfg.SYSTEM_PROMPT, height=100, 
-    help=cfg.__dataclass_fields__['SYSTEM_PROMPT'].metadata['help']
-)
-cfg.ROLE_PROMPT_A = st.sidebar.text_area(
-    "Role Prompt A", cfg.ROLE_PROMPT_A, height=80,
-    help=cfg.__dataclass_fields__['ROLE_PROMPT_A'].metadata['help']
-)
-cfg.ROLE_PROMPT_B = st.sidebar.text_area(
-    "Role Prompt B", cfg.ROLE_PROMPT_B, height=80,
-    help=cfg.__dataclass_fields__['ROLE_PROMPT_B'].metadata['help']
-)
-
-# Hauptbereich
-st.title("KI-Konsens Debatte")
-question = st.text_input("Deine Frage:", key="question_input")
+# --- Hauptbereich ---
+st.header("3. Diskussion starten")
+# Thema
+question = st.text_area("Deine Frage / Thema", value=st.session_state.topic, key="topic")
 if st.button("Debatte starten"):
-    if not question:
-        st.error("Bitte eine Frage eingeben.")
-    else:
-        with st.spinner("Diskussion läuft …"):
-            engine = ConsensusEngine(cfg)
-            report, raw_json = engine.run_debate(question)
-            st.markdown(report)
-            st.download_button("JSON speichern", raw_json, file_name="debate.json")
+    engine = ConsensusEngine(st.session_state.cfg)
+    report, raw_json = engine.run(topic)
+    st.markdown(report)
+    st.download_button("JSON speichern", raw_json, file_name="debate.json")
