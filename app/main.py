@@ -26,8 +26,6 @@ st.sidebar.radio(
 # Konfiguiere die Session State Step Variable
 if st.session_state.step_selector_radio + 1 != st.session_state.step:
     st.session_state.step = st.session_state.step_selector_radio + 1
-if st.session_state.step_selector + 1 != st.session_state.step:
-    st.session_state.step = st.session_state.step_selector + 1
 
 # LLM Einstellungen (Step 1)
 if st.session_state.step == 1:
