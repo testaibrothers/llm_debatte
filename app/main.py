@@ -53,27 +53,37 @@ elif step == steps[1]:
 # --- Step 3: Diskussion starten ---
 else:
     st.header("3. Diskussion starten")
-    # Zusammenfassung der Einstellungen
-    st.subheader("Agent A")
-    st.write(st.session_state.agent_a)
-    st.subheader("Agent B")
-    st.write(st.session_state.agent_b)
-    st.subheader("Konsens-Parameter")
-    st.write(st.session_state.consensus_config)
+    # Input für das Thema / die Frage
+    topic = st.text_area("Dein Thema / Deine Idee", height=100)
+    st.markdown("**Bitte oben dein Thema eingeben, bevor du startest.**")
 
-    # Agenten instanziieren
-    def make_agent(config):
-        api_key = st.secrets.get("openai_api_key","") if config['provider']=="OpenAI" else st.secrets.get("gemini_api_key","")
-        if config['provider']=="OpenAI":
-            return OpenAIAdapter(config.get('name',"Agent"), api_key, model=config['model'], temperature=0.7)
-        else:
-            return GeminiAdapter(config.get('name',"Agent"), api_key, model=config['model'])
-
-    agent_a = make_agent({**st.session_state.agent_a, 'name':'Agent A'})
-    agent_b = make_agent({**st.session_state.agent_b, 'name':'Agent B'})
-    engine = ConsensusEngine(st.session_state.consensus_config)
-
+    # Button zum Starten
     if st.button("Diskussion starten"):
-        history = engine.run(agent_a, agent_b, initial_prompt=st.session_state.agent_a['prompt'])
-        st.success("Diskussion abgeschlossen. Finale Empfehlung:")
-        st.write(history[-1][1])
+        if not topic.strip():
+            st.error("Bitte gib zuerst ein Thema oder eine Idee ein.")
+        else:
+            # Instanziiere Agenten
+            def make_agent(config):
+                api_key = st.secrets.get("openai_api_key", "") if config['provider'] == "OpenAI" else st.secrets.get("gemini_api_key", "")
+                name = config.get('name', 'Agent')
+                if config['provider'] == "OpenAI":
+                    return OpenAIAdapter(name, api_key, model=config['model'], temperature=0.7)
+                return GeminiAdapter(name, api_key, model=config['model'])
+
+            agent_a = make_agent({**st.session_state.agent_a, 'name': 'Agent A'})
+            agent_b = make_agent({**st.session_state.agent_b, 'name': 'Agent B'})
+            engine = ConsensusEngine(st.session_state.consensus_config)
+
+            # Diskussion ausführen
+            with st.spinner("Diskussion läuft... Bitte warten." ):
+                history = engine.run(agent_a, agent_b, initial_prompt=topic)
+
+            # Ergebnis anzeigen
+            final_agent, final_text = history[-1]
+            st.success(f"Diskussion abgeschlossen. Finale Empfehlung von {final_agent}:")
+            st.write(final_text)
+            
+            # Optional: komplettes Log einblenden
+            if st.checkbox("Komplettes Protokoll anzeigen"):   
+                for i, (agent, text) in enumerate(history, 1):
+                    st.markdown(f"**Runde {i} – {agent}:** {text}")
