@@ -6,7 +6,7 @@ class ConsensusConfig:
     """
     Konfigurationsparameter für die Konsens-Plattform.
     """
-    # Hard-Cap: maximale Gesamtanzahl aller Nachrichten (Divergenz + Konvergenz)
+    # Hard-Cap: maximale Gesamtzahl aller Nachrichten (Divergenz + Konvergenz)
     max_rounds: int = field(default=10)
     # Startwert für den Konvergenz-Threshold (0.0–1.0)
     similarity_threshold: float = field(default=0.8)
