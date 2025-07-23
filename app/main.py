@@ -9,30 +9,29 @@ from agents.openai_adapter import OpenAIAdapter
 from agents.gemini_adapter import GeminiAdapter
 
 # Initialisiere Session State Defaults
-if 'step' not in st.session_state:
-    st.session_state.step = 1
+if 'provider' not in st.session_state:
+    st.session_state.provider = None
+if 'model' not in st.session_state:
+    st.session_state.model = None
+if 'prompt' not in st.session_state:
+    st.session_state.prompt = None
+if 'config' not in st.session_state:
+    st.session_state.config = None
 
 # Wizard Stepper UI
 st.sidebar.title("Navigiere")
 steps = ["Agents konfigurieren", "Konsensregeln einstellen", "Diskussion starten"]
-# Initialisiere Session State für Step Selector
-if 'step_selector_radio' not in st.session_state:
-    st.session_state.step_selector_radio = st.session_state.step - 1
-# Ein horizontaler Stepper via Radio nur einmal definieren
-st.sidebar.radio(
-    "Schritt im Prozess",  # Beschriftung
+# Radio-Widget für Schrittwahl
+st.session_state.step_selector_radio = st.sidebar.radio(
+    "Schritt im Prozess",
     steps,
-    index=st.session_state.step - 1,
+    index=0,
     key="step_selector_radio"
 )
+# Bestimme aktuellen Schritt
+step = st.session_state.step_selector_radio + 1
 
-# Konfiguiere die Session State Step Variable
-if st.session_state.step_selector_radio + 1 != st.session_state.step:
-    st.session_state.step = st.session_state.step_selector_radio + 1
-if st.session_state.step_selector_radio + 1 != st.session_state.step:
-    st.session_state.step = st.session_state.step_selector_radio + 1
-
-# LLM Einstellungen (Step 1)
+# LLM Einstellungen (Step 1) (Step 1)
 if st.session_state.step == 1:
     st.header("1. Agents konfigurieren")
     provider = st.selectbox("Anbieter", ["OpenAI", "Gemini"])
