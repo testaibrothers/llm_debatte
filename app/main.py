@@ -82,11 +82,11 @@ with st.sidebar.expander("2. Konsens-Einstellungen", expanded=False):
 
 # Hauptbereich
 st.header("3. Diskussion starten")
+# Fragefeld, speichert lokal in 'question'
 question = st.text_area(
-    "Deine Frage / Thema", st.session_state.topic, key="topic")
+    "Deine Frage / Thema", st.session_state.topic, key="topic_input"
+)
 if st.button("Debatte starten"):
-    # Speichere in State
-    st.session_state.topic = question
     engine = ConsensusEngine(st.session_state.cfg)
     with st.spinner("Diskussion läuft…"):
         try:
