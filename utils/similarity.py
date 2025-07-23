@@ -5,12 +5,11 @@ from sklearn.metrics.pairwise import cosine_similarity as cs
 # Einmaliger Vektorisierer für Effizienz
 tfidf = TfidfVectorizer()
 
-# Funktion zur Berechnung der Kosinus-Ähnlichkeit zwischen zwei Texten
 def cosine_similarity(text1: str, text2: str) -> float:
     """
-    Berechnet die Kosinus-Ähnlichkeit von zwei Texten basierend auf TF-IDF-Vektoren.
-    Rückgabewert liegt zwischen 0.0 (völlig unterschiedlich) und 1.0 (identisch).
+    Berechnet die Kosinus-Ähnlichkeit zwischen zwei Texten basierend auf TF-IDF-Vektoren.
+    Rückgabewert zwischen 0.0 und 1.0.
     """
     vectors = tfidf.fit_transform([text1, text2])
-    score_matrix = cs(vectors[0:1], vectors[1:2])
-    return float(score_matrix[0][0])
+    similarity_matrix = cs(vectors[0:1], vectors[1:2])
+    return float(similarity_matrix[0][0])
