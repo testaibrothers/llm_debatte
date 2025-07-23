@@ -1,5 +1,5 @@
+# utils/json_utils.py
 import re
-import json
 
 def extract_json_fallback(text: str) -> dict:
     optimistic = re.search(r'optimistic\W+(.*?)\n', text, re.IGNORECASE | re.DOTALL)
