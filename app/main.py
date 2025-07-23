@@ -21,17 +21,17 @@ if 'config' not in st.session_state:
 # Wizard Stepper UI
 st.sidebar.title("Navigiere")
 steps = ["Agents konfigurieren", "Konsensregeln einstellen", "Diskussion starten"]
-# Radio-Widget für Schrittwahl
-st.session_state.step_selector_radio = st.sidebar.radio(
+# Radio-Widget für Schrittwahl (nur Local Variable, kein Session State)
+step_selection = st.sidebar.radio(
     "Schritt im Prozess",
     steps,
     index=0,
     key="step_selector_radio"
 )
-# Bestimme aktuellen Schritt
-step = st.session_state.step_selector_radio + 1
+# Berechne aktuellen Schritt aus der Auswahl
+step = steps.index(step_selection) + 1
 
-# LLM Einstellungen (Step 1) (Step 1)
+# LLM Einstellungen (Step 1) (Step 1) (Step 1)
 if st.session_state.step == 1:
     st.header("1. Agents konfigurieren")
     provider = st.selectbox("Anbieter", ["OpenAI", "Gemini"])
