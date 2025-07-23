@@ -1,72 +1,61 @@
 # consensus/consensus_engine.py
-import os, sys
-# Eine Ebene über dem Paket-Ordner hinzufügen, damit 'utils' gefunden wird
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import logging
 import time
 import json
+from typing import Tuple, List
+
 from consensus.consensus_config import ConsensusConfig
 from utils.similarity import cosine_similarity
 
 class ConsensusEngine:
     """
-    Engine zur Orchestrierung von Divergenz- und Konvergenz-Phasen.
+    Engine zur Durchführung von Divergenz- und Konvergenz-Phasen.
     """
     def __init__(self, config: ConsensusConfig):
         self.cfg = config
-        logging.basicConfig(level=config.log_level)
-        self.history = []  # List of tuples (agent_name, text, agree_block)
-        self.similarity_log = []
-        self.start_time = time.time()
+        logging.basicConfig(level=logging.INFO)
 
-    def add_message(self, agent_name: str, text: str, agree_block: dict = None):
-        self.history.append((agent_name, text, agree_block))
+    def run_debate(self, user_question: str) -> Tuple[str, str]:
+        """
+        Führt die Debatte durch und gibt (report_markdown, raw_json) zurück.
+        """
+        # Initialisierung
+        history = []  # List[dict]
+        report_lines: List[str] = []
 
-    def has_diverged(self) -> bool:
-        if len(self.history) < 2:
-            return True
-        _, prev_text, _ = self.history[-2]
-        _, curr_text, _ = self.history[-1]
-        sim = cosine_similarity(prev_text, curr_text)
-        self.similarity_log.append(sim)
-        return sim <= self.cfg.divergence_threshold
+        # 1. Divergenz-Phase
+        for i in range(self.cfg.MAX_DIVERGENCE_ROUNDS):
+            prompt = f"{self.cfg.SYSTEM_PROMPT}\n
+User-Thema: {user_question}\n"  \
+                     f"Runde {i+1} (Divergenz): Generiere neue Ideen mit Temp {self.cfg.TEMP_DIV}."
+            # Hier KI-Aufruf (Adapter) einfügen
+            response = self._call_agent(prompt, role_prompt=self.cfg.ROLE_PROMPT_A, temperature=self.cfg.TEMP_DIV)
+            history.append({"round": i+1, "phase": "divergence", "response": response})
+            report_lines.append(f"- Idee {i+1}: {response}")
 
-    def has_converged(self, agree_block: dict) -> bool:
-        agreed = agree_block.get("agree", False) if agree_block else False
-        sim = self.similarity_log[-1] if self.similarity_log else 0.0
-        return agreed and sim >= self.cfg.convergence_threshold
+        # 2. Konvergenz-Phase
+        for j in range(self.cfg.MAX_CONVERGENCE_ROUNDS):
+            prompt = f"{self.cfg.SYSTEM_PROMPT}\n
+Basierend auf Ideen: {[h['response'] for h in history]}\n"  \
+                     f"Runde {j+1} (Konvergenz): Prüfe und kombiniere mit Temp {self.cfg.TEMP_CONV}."
+            response = self._call_agent(prompt, role_prompt=self.cfg.ROLE_PROMPT_B, temperature=self.cfg.TEMP_CONV)
+            similarity = cosine_similarity(history[-1]["response"], response)
+            history.append({"round": j+1, "phase": "convergence", "response": response, "similarity": similarity})
+            report_lines.append(f"- Konsolidierung {j+1} (Sim: {similarity:.2f}): {response}")
+            if similarity >= self.cfg.SIMILARITY_CUTOFF:
+                report_lines.append("**Konsens erreicht!**")
+                break
 
-    def run(self, agent_a, agent_b, initial_prompt: str):
-        round_counter = 0
-        current, other = agent_a, agent_b
-        text = initial_prompt
-        agree_block = {}
+        # 3. Finalbericht
+        report_markdown = "## Konsensbericht\n" + "\n".join(report_lines)
+        raw_json = json.dumps(history, ensure_ascii=False, indent=2)
+        return report_markdown, raw_json
 
-        # Divergenz-Phase
-        for _ in range(self.cfg.divergence_rounds):
-            response = current.call(text)
-            try:
-                # JSON-Block am Ende parsen
-                agree_block = json.loads(response.split("```json\n")[-1])
-            except:
-                agree_block = {}
-            self.add_message(current.name, response, agree_block)
-            text = response
-            current, other = other, current
-            round_counter += 1
-
-        # Konvergenz-Phase
-        while round_counter < self.cfg.max_rounds and not self.has_converged(agree_block):
-            response = current.call(text)
-            try:
-                agree_block = json.loads(response.split("```json\n")[-1])
-            except:
-                agree_block = {}
-            self.add_message(current.name, response, agree_block)
-            text = response
-            current, other = other, current
-            round_counter += 1
-
-        # Rückgabe ohne agree_block
-        return [(agent, txt) for agent, txt, _ in self.history]
+    def _call_agent(self, prompt: str, role_prompt: str, temperature: float) -> str:
+        """
+        Platzhalter für KI-Adapter-Aufrufe.
+        """
+        # Aktuell Dummy-Implementierung:
+        logging.info(f"Calling agent with temp={temperature}")
+        time.sleep(0.5)  # Simuliere Latenz
+        return f"[Antwort bei Temp {temperature}]"
