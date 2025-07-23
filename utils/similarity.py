@@ -1,24 +1,16 @@
-# consensus/consensus_config.py
-from dataclasses import dataclass, field
+# utils/similarity.py
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity as cs
 
-@dataclass
-class ConsensusConfig:
-    # Gesamtzahl aller Beiträge (Hard-Cap)
-    max_rounds: int = field(default=10)
-    # Konvergenz-Schwelle: Ähnlichkeit ab der wir Konsens annehmen (0.0–1.0)
-    similarity_threshold: float = field(default=0.8)
+# Einmaliger Vektorisierer für Effizienz
+tfidf = TfidfVectorizer()
 
-    # Divergenz-Phase: Anzahl der Runden und Schwelle
-    divergence_rounds: int = field(default=3)
-    divergence_threshold: float = field(default=0.5)
-
-    # Konvergenz-Phase: wann wir Konsenscheit erreichen
-    convergence_threshold: float = field(default=0.8)
-
-    # Gesamt-Abbruch
-    max_rounds_total: int = field(default=10)
-    manual_pause: bool = field(default=False)
-    stop_on_manual: bool = field(default=True)
-
-    # Logging-Level (z.B. INFO, DEBUG)
-    log_level: str = field(default="INFO")
+# Funktion zur Berechnung der Kosinus-Ähnlichkeit zwischen zwei Texten
+def cosine_similarity(text1: str, text2: str) -> float:
+    """
+    Berechnet die Kosinus-Ähnlichkeit von zwei Texten basierend auf TF-IDF-Vektoren.
+    Rückgabewert liegt zwischen 0.0 (völlig unterschiedlich) und 1.0 (identisch).
+    """
+    vectors = tfidf.fit_transform([text1, text2])
+    score_matrix = cs(vectors[0:1], vectors[1:2])
+    return float(score_matrix[0][0])
