@@ -29,7 +29,7 @@ def main():
         "(Standard-Prompt vordefiniert)"
     )
 
-    # ── Sidebar: LLM Einstellungen ─────────────────────────
+    # ── Sidebar: LLM-Einstellungen ─────────────────────────
     with st.sidebar.expander("LLM-Einstellungen", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
@@ -50,6 +50,7 @@ def main():
                 help=prompt_help
             )
         with col2:
+            # Für Gemini API-Key hinzufügen
             provider_b = st.selectbox(
                 "Agent B Anbieter", ["OpenAI", "Gemini"], index=0,
                 help=agent_provider_help
@@ -116,11 +117,13 @@ def main():
     cfg.stop_on_manual = stop_on_manual
 
     # ── Agenten instanziieren ──────────────────────────────
-    api_key = st.secrets["openai_api_key"]
+    openai_key = st.secrets.get("openai_api_key", "")
+    gemini_key = st.secrets.get("gemini_api_key", "")
     def make_agent(name, provider, model, prompt):
         if provider == "OpenAI":
-            return OpenAIAdapter(name, api_key, model=model, temperature=0.7)
-        return GeminiAdapter(name, api_key, model=model)
+            return OpenAIAdapter(name, openai_key, model=model, temperature=0.7)
+        # Für Gemini musst du in den App-Secrets 'gemini_api_key' setzen
+        return GeminiAdapter(name, gemini_key, model=model)
 
     agent_a = make_agent("Agent A", provider_a, model_a, prompt_a)
     agent_b = make_agent("Agent B", provider_b, model_b, prompt_b)
