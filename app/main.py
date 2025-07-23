@@ -76,7 +76,7 @@ with st.sidebar.expander("2. Konsens-Einstellungen", expanded=False):
         help=cfg.__dataclass_fields__['NOVELTY_THRESHOLD'].metadata['help'], key="NOVELTY_THRESHOLD"
     )
     cfg.COMBO_BONUS_PERCENT = st.slider(
-        "Combo Bonus %", 0, 50, cfg.COMBO_BONUS_PERCENT, 1,
+        "Combo Bonus %", 0.0, 50.0, float(cfg.COMBO_BONUS_PERCENT), 1.0,
         help=cfg.__dataclass_fields__['COMBO_BONUS_PERCENT'].metadata['help'], key="COMBO_BONUS_PERCENT"
     )
 
