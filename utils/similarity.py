@@ -3,22 +3,22 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ConsensusConfig:
-    # Hard-Cap für alle Beiträge
+    # Gesamtzahl aller Beiträge (Hard-Cap)
     max_rounds: int = field(default=10)
-    # Startwert für Konvergenz-Threshold (0.0–1.0)
+    # Konvergenz-Schwelle: Ähnlichkeit ab der wir Konsens annehmen (0.0–1.0)
     similarity_threshold: float = field(default=0.8)
 
-    # Einstellungen Divergenz-Phase
+    # Divergenz-Phase: Anzahl der Runden und Schwelle
     divergence_rounds: int = field(default=3)
     divergence_threshold: float = field(default=0.5)
 
-    # Einstellung Konvergenz-Phase
+    # Konvergenz-Phase: wann wir Konsenscheit erreichen
     convergence_threshold: float = field(default=0.8)
 
-    # Weitere Abbruchkriterien
+    # Gesamt-Abbruch
     max_rounds_total: int = field(default=10)
     manual_pause: bool = field(default=False)
     stop_on_manual: bool = field(default=True)
 
-    # Logging-Level
+    # Logging-Level (z.B. INFO, DEBUG)
     log_level: str = field(default="INFO")
