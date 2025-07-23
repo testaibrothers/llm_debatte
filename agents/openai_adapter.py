@@ -1,0 +1,20 @@
+import requests
+from .agent_client import AgentClient
+
+class OpenAIAdapter(AgentClient):
+    def __init__(self, name: str, api_key: str, model: str, temperature: float):
+        super().__init__(name, config={"model": model, "temperature": temperature})
+        self.api_key = api_key
+
+    def call(self, prompt: str) -> str:
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {
+            "model": self.config["model"],
+            "messages": [{"role": "system", "content": prompt}],
+            "temperature": self.config["temperature"],
+            "max_tokens": 200
+        }
+        resp = requests.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
