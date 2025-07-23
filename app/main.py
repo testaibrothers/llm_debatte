@@ -83,7 +83,7 @@ if total > 0:
 # Prompts
 st.sidebar.subheader("Prompt-Texte")
 cfg.SYSTEM_PROMPT = st.sidebar.text_area(
-    "System Prompt", cfg.SYSTEM_PROMPT, height=100,
+    "System Prompt", cfg.SYSTEM_PROMPT, height=100, 
     help=cfg.__dataclass_fields__['SYSTEM_PROMPT'].metadata['help']
 )
 cfg.ROLE_PROMPT_A = st.sidebar.text_area(
