@@ -1,71 +1,71 @@
 # consensus/consensus_engine.py
+import os, sys
+# eine Ebene über dem Paket-Ordner hinzufügen, damit imports funktionieren
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import logging
 import time
-import json
+from consensus.consensus_config import ConsensusConfig
 from utils.similarity import cosine_similarity
 
 class ConsensusEngine:
-    def __init__(self, config):
+    """
+    Engine zur Orchestrierung von Divergenz- und Konvergenz-Phasen.
+    """
+    def __init__(self, config: ConsensusConfig):
         self.cfg = config
-        self.history = []  # [(agent_name, text, metrics)]
+        logging.basicConfig(level=config.log_level)
+        self.history = []  # List of tuples (agent_name, text, agree_block)
         self.similarity_log = []
         self.start_time = time.time()
 
-    def add_message(self, agent_name, text, agree_block=None):
-        # agree_block ist dict mit agree/open_issues
-        metrics = {'agree': None, 'open_issues': []}
-        if agree_block:
-            metrics.update(agree_block)
-        self.history.append((agent_name, text, metrics))
+    def add_message(self, agent_name: str, text: str, agree_block: dict = None):
+        self.history.append((agent_name, text, agree_block))
 
-    def get_similarity(self, a, b):
-        return cosine_similarity(a, b)
+    def has_diverged(self) -> bool:
+        if len(self.history) < 2:
+            return True
+        _, prev_text, _ = self.history[-2]
+        _, curr_text, _ = self.history[-1]
+        sim = cosine_similarity(prev_text, curr_text)
+        self.similarity_log.append(sim)
+        return sim <= self.cfg.divergence_threshold
 
-    def run(self, agent_a, agent_b, initial_prompt):
+    def has_converged(self, agree_block: dict) -> bool:
+        # JSON-basiertes Agree/Disagree prüfen
+        agreed = agree_block.get("agree", False)
+        sim = self.similarity_log[-1] if self.similarity_log else 0.0
+        return agreed and sim >= self.cfg.convergence_threshold
+
+    def run(self, agent_a, agent_b, initial_prompt: str):
+        round_counter = 0
         current, other = agent_a, agent_b
-        prompt = initial_prompt
-        round_count = 0
+        text = initial_prompt
+        agree_block = {}
 
-        while True:
-            # Stop-Conditions
-            if round_count >= self.cfg.max_rounds_total:
-                break
-            if time.time() - self.start_time > 120:
-                break  # Timeout nach 120s
-
-            # Agent liefert Antwort + Agree/Disagree-JSON
-            response = current.call(prompt)
+        # Divergenz-Phase
+        for _ in range(self.cfg.divergence_rounds):
+            response = current.call(text)
+            # extrahiere JSON am Ende
             try:
-                main_text, agree_json = response.split('```json')
-                agree_block = json.loads(agree_json)
+                agree_block = json.loads(response.split("```json\n")[-1])
             except:
-                main_text = response
-                agree_block = None
-
-            # Loggen und Metriken
-            self.add_message(current.name, main_text, agree_block)
-            sim = self.get_similarity(
-                self.history[-2][1] if len(self.history)>1 else initial_prompt,
-                main_text
-            )
-            self.similarity_log.append(sim)
-
-            # Konsensprüfung
-            if agree_block and agree_block.get('agree', False) and sim >= self.cfg.similarity_threshold:
-                break
-
-            # Adaptive Threshold
-            if len(self.similarity_log) >= 3:
-                recent = self.similarity_log[-3:]
-                var = max(recent) - min(recent)
-                if var > 0.2:
-                    self.cfg.similarity_threshold = min(0.9, self.cfg.similarity_threshold + 0.05)
-                else:
-                    self.cfg.similarity_threshold = max(0.6, self.cfg.similarity_threshold - 0.05)
-
-            # Wechsel
-            prompt = main_text
+                agree_block = {}
+            self.add_message(current.name, response, agree_block)
+            text = response
             current, other = other, current
-            round_count += 1
+            round_counter += 1
 
-        return self.history
+        # Konvergenz-Phase
+        while round_counter < self.cfg.max_rounds and not self.has_converged(agree_block):
+            response = current.call(text)
+            try:
+                agree_block = json.loads(response.split("```json\n")[-1])
+            except:
+                agree_block = {}
+            self.add_message(current.name, response, agree_block)
+            text = response
+            current, other = other, current
+            round_counter += 1
+
+        return [(agent, txt) for agent, txt, _ in self.history]
