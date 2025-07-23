@@ -2,60 +2,66 @@
 import logging
 import time
 import json
-from typing import Tuple, List
-
+from typing import Tuple, List, Dict
 from consensus.consensus_config import ConsensusConfig
 from utils.similarity import cosine_similarity
 
 class ConsensusEngine:
     """
     Engine zur Durchführung von Divergenz- und Konvergenz-Phasen.
+
+    Methoden:
+    - run_debate(question: str, cfg: ConsensusConfig) -> Tuple[str, str]
+        Führt die Debatte durch und gibt (Markdown-Report, JSON-Log) zurück.
     """
     def __init__(self, config: ConsensusConfig):
         self.cfg = config
         logging.basicConfig(level=logging.INFO)
+        self.history: List[Dict] = []  # Pro Runde: {agent, text, agree, issues, similarity}
 
-    def run_debate(self, user_question: str) -> Tuple[str, str]:
-        """
-        Führt die Debatte durch und gibt (report_markdown, raw_json) zurück.
-        """
-        # Initialisierung
-        history = []  # List[dict]
-        report_lines: List[str] = []
+    def run_debate(self, question: str, agent_a, agent_b) -> Tuple[str, str]:
+        # Initial prompt
+        prompt = question
+        round_idx = 0
+        # Divergenz-Phase
+        while round_idx < self.cfg.MAX_DIVERGENCE_ROUNDS:
+            for agent in (agent_a, agent_b):
+                response = agent.call(prompt)
+                # Simulate agree/disagree block (simplified)
+                similarity = cosine_similarity(prompt, response)
+                entry = {
+                    "round": round_idx+1,
+                    "agent": agent.name,
+                    "text": response,
+                    "similarity": similarity
+                }
+                self.history.append(entry)
+                prompt = response
+            round_idx += 1
 
-        # 1. Divergenz-Phase
-        for i in range(self.cfg.MAX_DIVERGENCE_ROUNDS):
-            prompt = f"{self.cfg.SYSTEM_PROMPT}\n
-User-Thema: {user_question}\n"  \
-                     f"Runde {i+1} (Divergenz): Generiere neue Ideen mit Temp {self.cfg.TEMP_DIV}."
-            # Hier KI-Aufruf (Adapter) einfügen
-            response = self._call_agent(prompt, role_prompt=self.cfg.ROLE_PROMPT_A, temperature=self.cfg.TEMP_DIV)
-            history.append({"round": i+1, "phase": "divergence", "response": response})
-            report_lines.append(f"- Idee {i+1}: {response}")
-
-        # 2. Konvergenz-Phase
-        for j in range(self.cfg.MAX_CONVERGENCE_ROUNDS):
-            prompt = f"{self.cfg.SYSTEM_PROMPT}\n
-Basierend auf Ideen: {[h['response'] for h in history]}\n"  \
-                     f"Runde {j+1} (Konvergenz): Prüfe und kombiniere mit Temp {self.cfg.TEMP_CONV}."
-            response = self._call_agent(prompt, role_prompt=self.cfg.ROLE_PROMPT_B, temperature=self.cfg.TEMP_CONV)
-            similarity = cosine_similarity(history[-1]["response"], response)
-            history.append({"round": j+1, "phase": "convergence", "response": response, "similarity": similarity})
-            report_lines.append(f"- Konsolidierung {j+1} (Sim: {similarity:.2f}): {response}")
-            if similarity >= self.cfg.SIMILARITY_CUTOFF:
-                report_lines.append("**Konsens erreicht!**")
+        # Konvergenz-Phase
+        conv_rounds = 0
+        while conv_rounds < self.cfg.MAX_CONVERGENCE_ROUNDS:
+            responses = []
+            for agent in (agent_a, agent_b):
+                response = agent.call(prompt)
+                sim = cosine_similarity(prompt, response)
+                res_entry = {
+                    "round": self.cfg.MAX_DIVERGENCE_ROUNDS + conv_rounds + 1,
+                    "agent": agent.name,
+                    "text": response,
+                    "similarity": sim
+                }
+                self.history.append(res_entry)
+                responses.append(response)
+            # Check consensus condition
+            if cosine_similarity(responses[0], responses[1]) >= self.cfg.SIMILARITY_CUTOFF:
                 break
+            prompt = responses[-1]
+            conv_rounds += 1
 
-        # 3. Finalbericht
-        report_markdown = "## Konsensbericht\n" + "\n".join(report_lines)
-        raw_json = json.dumps(history, ensure_ascii=False, indent=2)
-        return report_markdown, raw_json
-
-    def _call_agent(self, prompt: str, role_prompt: str, temperature: float) -> str:
-        """
-        Platzhalter für KI-Adapter-Aufrufe.
-        """
-        # Aktuell Dummy-Implementierung:
-        logging.info(f"Calling agent with temp={temperature}")
-        time.sleep(0.5)  # Simuliere Latenz
-        return f"[Antwort bei Temp {temperature}]"
+        # Ergebnisreport
+        report_lines = [f"**{h['agent']}** (Runde {h['round']}): {h['text']}" for h in self.history]
+        report = "\n\n".join(report_lines)
+        raw_json = json.dumps(self.history, ensure_ascii=False, indent=2)
+        return report, raw_json
