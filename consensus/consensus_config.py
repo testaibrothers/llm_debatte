@@ -3,22 +3,25 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ConsensusConfig:
-    # Gesamtzahl aller Beiträge (Hard-Cap)
+    """
+    Konfigurationsparameter für die Konsens-Plattform.
+    """
+    # Hard-Cap: maximale Gesamtanzahl aller Nachrichten (Divergenz + Konvergenz)
     max_rounds: int = field(default=10)
-    # Konvergenz-Schwelle: Ähnlichkeit, ab der Konsens angenommen wird (0.0–1.0)
+    # Startwert für den Konvergenz-Threshold (0.0–1.0)
     similarity_threshold: float = field(default=0.8)
 
-    # Divergenz-Phase: Anzahl der Runden, um unterschiedliche Ideen zu sammeln
+    # Anzahl der Divergenz-Runden (Standard: 3)
     divergence_rounds: int = field(default=3)
-    # Divergenz-Threshold: maximale Ähnlichkeit, um weiterhin Divergenz zu erzwingen
+    # Divergenz-Threshold: maximale Ähnlichkeit, um weiterhin neue Ideen zu fördern
     divergence_threshold: float = field(default=0.5)
 
-    # Konvergenz-Phase: Schwellwert für Konsens nach Divergenz
+    # Konvergenz-Phase: Schwelle für Konsens nach Divergenz-Runden
     convergence_threshold: float = field(default=0.8)
 
-    # Gesamtanzahl Beiträge (Schutz gegen Endlosschleifen)
+    # Gesamtanzahl an Beiträgen (zusätzliche Schutzschicht gegen Endlosschleifen)
     max_rounds_total: int = field(default=10)
-    # Manueller Stopp: zeigt Button für manuelles Pausieren
+    # Manueller Stopp: zeigt in der UI einen Button für manuelles Pausieren
     manual_pause: bool = field(default=False)
     # Akzeptiert manuellen Stop als Abbruchkriterium
     stop_on_manual: bool = field(default=True)
