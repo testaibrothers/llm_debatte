@@ -53,16 +53,17 @@ elif step == steps[1]:
 # --- Step 3: Diskussion starten ---
 else:
     st.header("3. Diskussion starten")
-    # Input für das Thema / die Frage
-    topic = st.text_area("Dein Thema / Deine Idee", height=100)
-    st.markdown("**Bitte oben dein Thema eingeben, bevor du startest.**")
+    # Thema in Session State speichern, wenn geändert
+    if 'topic' not in st.session_state:
+        st.session_state.topic = ''
+    st.session_state.topic = st.text_area("Dein Thema / Deine Idee", value=st.session_state.topic, height=100)
 
     # Button zum Starten
     if st.button("Diskussion starten"):
-        if not topic.strip():
+        if not st.session_state.topic.strip():
             st.error("Bitte gib zuerst ein Thema oder eine Idee ein.")
         else:
-            # Instanziiere Agenten
+            # Agenten instanziieren
             def make_agent(config):
                 api_key = st.secrets.get("openai_api_key", "") if config['provider'] == "OpenAI" else st.secrets.get("gemini_api_key", "")
                 name = config.get('name', 'Agent')
@@ -75,15 +76,18 @@ else:
             engine = ConsensusEngine(st.session_state.consensus_config)
 
             # Diskussion ausführen
-            with st.spinner("Diskussion läuft... Bitte warten." ):
-                history = engine.run(agent_a, agent_b, initial_prompt=topic)
+            with st.spinner("Diskussion läuft... Bitte warten."):
+                history = engine.run(agent_a, agent_b, initial_prompt=st.session_state.topic)
+            # In Session State speichern
+            st.session_state.history = history
 
-            # Ergebnis anzeigen
-            final_agent, final_text = history[-1]
-            st.success(f"Diskussion abgeschlossen. Finale Empfehlung von {final_agent}:")
-            st.write(final_text)
-            
-            # Optional: komplettes Log einblenden
-            if st.checkbox("Komplettes Protokoll anzeigen"):   
-                for i, (agent, text) in enumerate(history, 1):
-                    st.markdown(f"**Runde {i} – {agent}:** {text}")
+    # Ausgabe nachdem Diskussion gelaufen ist
+    if 'history' in st.session_state:
+        history = st.session_state.history
+        final_agent, final_text = history[-1]
+        st.success(f"Diskussion abgeschlossen. Finale Empfehlung von {final_agent}:")
+        st.write(final_text)
+        # Optional: komplettes Log einblenden ohne Seite zu resetten
+        if st.checkbox("Komplettes Protokoll anzeigen", key="show_history"):
+            for i, (agent, text) in enumerate(history, 1):
+                st.markdown(f"**Runde {i} – {agent}:** {text}")
