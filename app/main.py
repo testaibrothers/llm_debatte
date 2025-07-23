@@ -87,10 +87,18 @@ question = st.text_area(
     "Deine Frage / Thema", st.session_state.topic, key="topic_input"
 )
 if st.button("Debatte starten"):
+    # Erstelle Agent-Instanzen
+    api_key = st.secrets.get("openai_api_key", "")
+    # Agent A
+    agent_a = OpenAIAdapter("Agent A", api_key, model=st.session_state.model_a, temperature=st.session_state.cfg.TEMP_DIV) if st.session_state.provider_a == "OpenAI" else GeminiAdapter("Agent A", st.secrets.get("gemini_api_key", ""), model=st.session_state.model_a, temperature=st.session_state.cfg.TEMP_DIV)
+    # Agent B
+    agent_b = OpenAIAdapter("Agent B", api_key, model=st.session_state.model_b, temperature=st.session_state.cfg.TEMP_DIV) if st.session_state.provider_b == "OpenAI" else GeminiAdapter("Agent B", st.secrets.get("gemini_api_key", ""), model=st.session_state.model_b, temperature=st.session_state.cfg.TEMP_DIV)
+
     engine = ConsensusEngine(st.session_state.cfg)
     with st.spinner("Diskussion läuft…"):
         try:
-            report_markdown, raw_json = engine.run_debate(question)
+            # Korrigierte run_debate-Aufruf mit Agenten
+            report_markdown, raw_json = engine.run_debate(question, agent_a, agent_b)
         except Exception as e:
             st.error(f"Debatte fehlgeschlagen: {e}")
         else:
