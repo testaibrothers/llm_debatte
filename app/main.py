@@ -1,5 +1,5 @@
+# app/main.py
 import os, sys
-# eine Ebene über 'app/' zum Modul-Suchpfad hinzufügen
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
@@ -7,87 +7,102 @@ from consensus.consensus_config import ConsensusConfig
 from consensus.consensus_engine import ConsensusEngine
 from agents.openai_adapter import OpenAIAdapter
 from agents.gemini_adapter import GeminiAdapter
+import json
 
-# --- Session State Defaults ---
-if 'agent_a' not in st.session_state:
-    st.session_state.agent_a = {'provider': 'OpenAI', 'model': 'gpt-3.5-turbo', 'prompt': 'Du bist Agent A...'}
-if 'agent_b' not in st.session_state:
-    st.session_state.agent_b = {'provider': 'OpenAI', 'model': 'gpt-3.5-turbo', 'prompt': 'Du bist Agent B...'}
-if 'consensus_config' not in st.session_state:
-    st.session_state.consensus_config = ConsensusConfig()
+# Sidebar: Konsens-Einstellungen
+st.sidebar.title("Konsens-System konfigurieren")
+# Config laden
+cfg = ConsensusConfig()
+# Kreativitäts-Parameter
+cfg.TEMP_DIV = st.sidebar.slider(
+    "Temperatur Divergenz (TEMP_DIV)",
+    0.1, 2.0, cfg.TEMP_DIV, 0.05,
+    help=cfg.__dataclass_fields__["TEMP_DIV"].metadata["help"]
+)
+cfg.TEMP_CONV = st.sidebar.slider(
+    "Temperatur Konvergenz (TEMP_CONV)",
+    0.1, 2.0, cfg.TEMP_CONV, 0.05,
+    help=cfg.__dataclass_fields__["TEMP_CONV"].metadata["help"]
+)
+# Runden-Limits
+cfg.MAX_DIVERGENCE_ROUNDS = st.sidebar.number_input(
+    "Max Divergenz-Runden (MAX_DIVERGENCE_ROUNDS)",
+    min_value=1, value=cfg.MAX_DIVERGENCE_ROUNDS,
+    help=cfg.__dataclass_fields__["MAX_DIVERGENCE_ROUNDS"].metadata["help"]
+)
+cfg.MAX_CONVERGENCE_ROUNDS = st.sidebar.number_input(
+    "Max Konvergenz-Runden (MAX_CONVERGENCE_ROUNDS)",
+    min_value=1, value=cfg.MAX_CONVERGENCE_ROUNDS,
+    help=cfg.__dataclass_fields__["MAX_CONVERGENCE_ROUNDS"].metadata["help"]
+)
+cfg.MAX_TOTAL_ROUNDS = st.sidebar.number_input(
+    "Max Gesamt-Runden (MAX_TOTAL_ROUNDS)",
+    min_value=1, value=cfg.MAX_TOTAL_ROUNDS,
+    help=cfg.__dataclass_fields__["MAX_TOTAL_ROUNDS"].metadata["help"]
+)
+# Metrik-Schwellen\                                                                                                                               
+cfg.SIMILARITY_CUTOFF = st.sidebar.slider(
+    "Similarity Cutoff (SIMILARITY_CUTOFF)",
+    0.70, 0.99, cfg.SIMILARITY_CUTOFF, 0.01,
+    help=cfg.__dataclass_fields__["SIMILARITY_CUTOFF"].metadata["help"]
+)
+cfg.NOVELTY_THRESHOLD = st.sidebar.slider(
+    "Novelty Threshold (NOVELTY_THRESHOLD)",
+    0.05, 0.30, cfg.NOVELTY_THRESHOLD, 0.01,
+    help=cfg.__dataclass_fields__["NOVELTY_THRESHOLD"].metadata["help"]
+)
+cfg.COMBO_BONUS_PERCENT = st.sidebar.slider(
+    "Combo Bonus % (COMBO_BONUS_PERCENT)",
+    0.0, 50.0, cfg.COMBO_BONUS_PERCENT, 1.0,
+    help=cfg.__dataclass_fields__["COMBO_BONUS_PERCENT"].metadata["help"]
+)
+# Score-Gewichte
+weights = ["WEIGHT_NUTZEN","WEIGHT_RISIKO","WEIGHT_KOSTEN","WEIGHT_MACHB"]
+sum_weights = sum(getattr(cfg,w) for w in weights)
+for w in weights:
+    val = st.sidebar.slider(
+        f"{w}", 0.0, 1.0, getattr(cfg,w), 0.05,
+        help=cfg.__dataclass_fields__[w].metadata["help"]
+    )
+    setattr(cfg,w, val)
+# Normalisiere Summe auf 1.0
+total = sum(getattr(cfg,w) for w in weights)
+for w in weights:
+    setattr(cfg, w, getattr(cfg,w)/total if total else 0)
+# Prompt-Texte
+cfg.SYSTEM_PROMPT = st.sidebar.text_area(
+    "System Prompt (SYSTEM_PROMPT)", cfg.SYSTEM_PROMPT, height=100,
+    help=cfg.__dataclass_fields__["SYSTEM_PROMPT"].metadata["help"]
+)
+cfg.ROLE_PROMPT_A = st.sidebar.text_area(
+    "Rolle A Prompt (ROLE_PROMPT_A)", cfg.ROLE_PROMPT_A, height=80,
+    help=cfg.__dataclass_fields__["ROLE_PROMPT_A"].metadata["help"]
+)
+cfg.ROLE_PROMPT_B = st.sidebar.text_area(
+    "Rolle B Prompt (ROLE_PROMPT_B)", cfg.ROLE_PROMPT_B, height=80,
+    help=cfg.__dataclass_fields__["ROLE_PROMPT_B"].metadata["help"]
+)
+# Preset-Auswahl
+preset = st.sidebar.selectbox(
+    "Preset-Modus",
+    ["Benutzerdefiniert","Kreativ","Streng","Risk-Aware"]
+)
+# Presets definieren
+def apply_preset(name):
+    if name=="Kreativ":
+        cfg.TEMP_DIV, cfg.TEMP_CONV = 1.8,0.7
+    elif name=="Streng":
+        cfg.SIMILARITY_CUTOFF, cfg.NOVELTY_THRESHOLD = 0.95,0.05
+    elif name=="Risk-Aware":
+        cfg.WEIGHT_RISIKO = 0.5
+if preset!="Benutzerdefiniert": apply_preset(preset)
 
-# --- Wizard Steps ---
-st.sidebar.title("Navigiere")
-steps = ["Agents konfigurieren", "Konsensregeln einstellen", "Diskussion starten"]
-step = st.sidebar.radio("Schritt im Prozess", steps, index=0)
-
-# --- Step 1: Agenten konfigurieren ---
-if step == steps[0]:
-    st.header("1. Agents konfigurieren")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Agent A")
-        a = st.session_state.agent_a
-        a['provider'] = st.selectbox("Anbieter A", ["OpenAI","Gemini"], index=["OpenAI","Gemini"].index(a['provider']))
-        models_a = ["gpt-3.5-turbo","gpt-4"] if a['provider']=="OpenAI" else ["gemini-proto"]
-        a['model'] = st.selectbox("Modell A", models_a, index=models_a.index(a['model']) if a['model'] in models_a else 0)
-        a['prompt'] = st.text_area("Prompt A", a['prompt'], height=100)
-    with col2:
-        st.subheader("Agent B")
-        b = st.session_state.agent_b
-        b['provider'] = st.selectbox("Anbieter B", ["OpenAI","Gemini"], index=["OpenAI","Gemini"].index(b['provider']))
-        models_b = ["gpt-3.5-turbo","gpt-4"] if b['provider']=="OpenAI" else ["gemini-proto"]
-        b['model'] = st.selectbox("Modell B", models_b, index=models_b.index(b['model']) if b['model'] in models_b else 0)
-        b['prompt'] = st.text_area("Prompt B", b['prompt'], height=100)
-
-# --- Step 2: Konsensregeln einstellen ---
-elif step == steps[1]:
-    st.header("2. Konsensregeln einstellen")
-    cfg = st.session_state.consensus_config
-    cfg.divergence_rounds = st.number_input("Divergenz-Runden", 1, 20, cfg.divergence_rounds)
-    cfg.divergence_threshold = st.slider("Divergenz-Threshold", 0.0, 1.0, cfg.divergence_threshold)
-    cfg.convergence_threshold = st.slider("Konvergenz-Threshold", 0.0, 1.0, cfg.convergence_threshold)
-    cfg.max_rounds_total = st.number_input("Max. Gesamt-Beiträge", 1, 50, cfg.max_rounds_total)
-    cfg.manual_pause = st.checkbox("Manueller Stopp möglich", value=cfg.manual_pause)
-
-# --- Step 3: Diskussion starten ---
-else:
-    st.header("3. Diskussion starten")
-    # Thema in Session State speichern, wenn geändert
-    if 'topic' not in st.session_state:
-        st.session_state.topic = ''
-    st.session_state.topic = st.text_area("Dein Thema / Deine Idee", value=st.session_state.topic, height=100)
-
-    # Button zum Starten
-    if st.button("Diskussion starten"):
-        if not st.session_state.topic.strip():
-            st.error("Bitte gib zuerst ein Thema oder eine Idee ein.")
-        else:
-            # Agenten instanziieren
-            def make_agent(config):
-                api_key = st.secrets.get("openai_api_key", "") if config['provider'] == "OpenAI" else st.secrets.get("gemini_api_key", "")
-                name = config.get('name', 'Agent')
-                if config['provider'] == "OpenAI":
-                    return OpenAIAdapter(name, api_key, model=config['model'], temperature=0.7)
-                return GeminiAdapter(name, api_key, model=config['model'])
-
-            agent_a = make_agent({**st.session_state.agent_a, 'name': 'Agent A'})
-            agent_b = make_agent({**st.session_state.agent_b, 'name': 'Agent B'})
-            engine = ConsensusEngine(st.session_state.consensus_config)
-
-            # Diskussion ausführen
-            with st.spinner("Diskussion läuft... Bitte warten."):
-                history = engine.run(agent_a, agent_b, initial_prompt=st.session_state.topic)
-            # In Session State speichern
-            st.session_state.history = history
-
-    # Ausgabe nachdem Diskussion gelaufen ist
-    if 'history' in st.session_state:
-        history = st.session_state.history
-        final_agent, final_text = history[-1]
-        st.success(f"Diskussion abgeschlossen. Finale Empfehlung von {final_agent}:")
-        st.write(final_text)
-        # Optional: komplettes Log einblenden ohne Seite zu resetten
-        if st.checkbox("Komplettes Protokoll anzeigen", key="show_history"):
-            for i, (agent, text) in enumerate(history, 1):
-                st.markdown(f"**Runde {i} – {agent}:** {text}")
+# Hauptbereich
+st.title("KI Konsens Debatte")
+user_q = st.text_area("1. Dein Thema / Frage", height=80)
+if st.button("2. Debatte starten"):
+    with st.spinner("Diskussion läuft …"):
+        engine = ConsensusEngine(cfg)
+        report, raw = engine.run(user_q)
+    st.markdown(report)
+    st.download_button("3. JSON speichern", raw, file_name="debate.json")
