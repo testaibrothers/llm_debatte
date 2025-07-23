@@ -4,21 +4,21 @@ from dataclasses import dataclass
 
 @dataclass
 class ConsensusConfig:
-    # ◾ Legacy-Felder (für bestehenden Orchestrator)
+    # Legacy (für deinen alten Orchestrator)
     max_rounds: int = 10
     similarity_threshold: float = 0.8
 
-    # ◾ Divergenz-Phase
+    # Divergenz-Phase
     divergence_rounds: int = 3
     divergence_threshold: float = 0.5
 
-    # ◾ Konvergenz-Phase
+    # Konvergenz-Phase
     convergence_threshold: float = 0.8
 
-    # ◾ Generelle Abbruchkriterien
+    # Gesamt-Abbruch
     max_rounds_total: int = 10
     manual_pause: bool = False
     stop_on_manual: bool = True
 
-    # ◾ Logging
+    # Logging
     log_level: str = "INFO"
