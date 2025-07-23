@@ -62,3 +62,4 @@ class ConsensusEngine:
 
         raw_json = json.dumps({"history": self.history, "scores": self.scores})
         return report, raw_json
+ 
