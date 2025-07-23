@@ -1,42 +1,33 @@
-# consensus/consensus.py
-import logging
-from consensus.consensus_config import ConsensusConfig
-from utils.similarity import cosine_similarity
+# consensus/consensus_config.py
+from dataclasses import dataclass, field
 
-class ConsensusOrchestrator:
-    def __init__(self, config: ConsensusConfig):
-        self.config = config
-        logging.basicConfig(level=config.log_level)
-        self.history = []  # List of tuples (agent_name, text)
-        self.similarity_log = []
+@dataclass
+class ConsensusConfig:
+    """
+    Konfigurationsparameter für die Konsens-Plattform.
+    """
+    # Hard-Cap: Maximale Gesamtzahl aller Nachrichten (Divergenz + Konvergenz)
+    max_rounds: int = field(default=10)
+    # Startwert für den Konvergenz-Threshold (0.0–1.0)
+    similarity_threshold: float = field(default=0.8)
 
-    def add_message(self, agent_name: str, text: str):
-        self.history.append((agent_name, text))
+    # Divergenz-Phase
+    # Anzahl der Runden, in denen divergente Ideen generiert werden
+    divergence_rounds: int = field(default=3)
+    # Divergenz-Threshold: maximale Ähnlichkeit, bis neue Ideen erzwungen werden
+    divergence_threshold: float = field(default=0.5)
 
-    def has_consensus(self) -> bool:
-        if len(self.history) < 2:
-            return False
-        _, prev = self.history[-2]
-        _, last = self.history[-1]
-        score = cosine_similarity(prev, last)
-        self.similarity_log.append(score)
-        return score >= self.config.convergence_threshold
+    # Konvergenz-Phase
+    # Schwelle für Konsens nach Divergenz-Runden
+    convergence_threshold: float = field(default=0.8)
 
-    def run(self, agent_a, agent_b, initial_prompt: str):
-        round_count = 0
-        current, other = agent_a, agent_b
-        text = initial_prompt
-        # Divergenz-Phase
-        for _ in range(self.config.divergence_rounds):
-            response = current.call(text)
-            self.add_message(current.name, response)
-            text = response
-            current, other = other, current
-        # Konvergenz-Phase
-        while round_count < self.config.max_rounds and not self.has_consensus():
-            response = current.call(text)
-            self.add_message(current.name, response)
-            text = response
-            current, other = other, current
-            round_count += 1
-        return self.history
+    # Zusätzliche Abbruchkriterien
+    # Gesamtzahl aller Beiträge (zusätzlich zu max_rounds)
+    max_rounds_total: int = field(default=10)
+    # Manuelles Pausieren per Button erlauben
+    manual_pause: bool = field(default=False)
+    # Manuellen Stopp akzeptieren
+    stop_on_manual: bool = field(default=True)
+
+    # Logging-Detailgrad (z.B. 'INFO', 'DEBUG')
+    log_level: str = field(default="INFO")
