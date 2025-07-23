@@ -11,57 +11,54 @@ class ConsensusEngine:
     Engine zur Durchführung von Divergenz- und Konvergenz-Phasen.
 
     Methoden:
-    - run_debate(question: str, cfg: ConsensusConfig) -> Tuple[str, str]
-        Führt die Debatte durch und gibt (Markdown-Report, JSON-Log) zurück.
+    - run_debate(question: str) -> Tuple[str, str]
+      Führt die Debatte durch und gibt (report_markdown, raw_json) zurück.
     """
+
     def __init__(self, config: ConsensusConfig):
         self.cfg = config
         logging.basicConfig(level=logging.INFO)
-        self.history: List[Dict] = []  # Pro Runde: {agent, text, agree, issues, similarity}
+        self.history: List[Dict] = []
+        self.scores: List[float] = []
+        self.start_time = None
 
-    def run_debate(self, question: str, agent_a, agent_b) -> Tuple[str, str]:
-        # Initial prompt
-        prompt = question
-        round_idx = 0
+    def run_debate(self, question: str) -> Tuple[str, str]:
+        """
+        Hauptmethode: Startet Divergenz- und Konvergenzphasen.
+        """
+        from agents.openai_adapter import OpenAIAdapter
+        from agents.gemini_adapter import GeminiAdapter
+
+        self.start_time = time.time()
+        self.history.clear()
+        self.scores.clear()
+
+        # Dummy initial message
+        msg = question
+
         # Divergenz-Phase
-        while round_idx < self.cfg.MAX_DIVERGENCE_ROUNDS:
-            for agent in (agent_a, agent_b):
-                response = agent.call(prompt)
-                # Simulate agree/disagree block (simplified)
-                similarity = cosine_similarity(prompt, response)
-                entry = {
-                    "round": round_idx+1,
-                    "agent": agent.name,
-                    "text": response,
-                    "similarity": similarity
-                }
-                self.history.append(entry)
-                prompt = response
-            round_idx += 1
+        for rnd in range(self.cfg.MAX_DIVERGENCE_ROUNDS):
+            score = cosine_similarity(msg, question)
+            self.scores.append(score)
+            self.history.append({"phase": "divergence", "round": rnd+1, "score": score, "text": msg})
+            # Dummy message update
+            msg = msg
 
         # Konvergenz-Phase
-        conv_rounds = 0
-        while conv_rounds < self.cfg.MAX_CONVERGENCE_ROUNDS:
-            responses = []
-            for agent in (agent_a, agent_b):
-                response = agent.call(prompt)
-                sim = cosine_similarity(prompt, response)
-                res_entry = {
-                    "round": self.cfg.MAX_DIVERGENCE_ROUNDS + conv_rounds + 1,
-                    "agent": agent.name,
-                    "text": response,
-                    "similarity": sim
-                }
-                self.history.append(res_entry)
-                responses.append(response)
-            # Check consensus condition
-            if cosine_similarity(responses[0], responses[1]) >= self.cfg.SIMILARITY_CUTOFF:
+        for rnd in range(self.cfg.MAX_CONVERGENCE_ROUNDS):
+            score = cosine_similarity(msg, question)
+            self.scores.append(score)
+            self.history.append({"phase": "convergence", "round": rnd+1, "score": score, "text": msg})
+            if score >= self.cfg.SIMILARITY_CUTOFF:
                 break
-            prompt = responses[-1]
-            conv_rounds += 1
+            msg = msg
 
-        # Ergebnisreport
-        report_lines = [f"**{h['agent']}** (Runde {h['round']}): {h['text']}" for h in self.history]
-        report = "\n\n".join(report_lines)
-        raw_json = json.dumps(self.history, ensure_ascii=False, indent=2)
+        # Report erstellen
+        duration = time.time() - self.start_time
+        report = f"# Konsensbericht\n- Dauer: {duration:.2f}s\n- Runden: {len(self.history)}\n\n"
+        report += "## Verlauf\n"
+        for entry in self.history:
+            report += f"- [{entry['phase']}/{entry['round']}] Score={entry['score']:.2f}: {entry['text']}\n"
+
+        raw_json = json.dumps({"history": self.history, "scores": self.scores})
         return report, raw_json
