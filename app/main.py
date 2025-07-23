@@ -4,140 +4,92 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import streamlit as st
 from consensus.consensus_config import ConsensusConfig
-from consensus.consensus import ConsensusOrchestrator
+from consensus.consensus_engine import ConsensusEngine
 from agents.openai_adapter import OpenAIAdapter
 from agents.gemini_adapter import GeminiAdapter
+
 
 def main():
     st.set_page_config(page_title="KI-Debattenplattform", layout="centered")
     st.title("🤖 KI-Debattenplattform – Modular")
 
-    # Hilfetexte (einmal definiert)
-    agent_provider_help = (
-        "Wähle den KI-Anbieter für deinen Agenten aus. "
-        "OpenAI ist weit verbreitet, Gemini ist Googles Modell. "
-        "(Standard: OpenAI)"
-    )
-    agent_model_help = (
-        "Wähle das Modell für die KI. GPT-4 liefert in der Regel genauere, "
-        "komplexere Antworten als gpt-3.5-turbo, ist jedoch teurer und langsamer. "
-        "(Standard: gpt-3.5-turbo)"
-    )
-    prompt_help = (
-        "Definiere hier den System-Prompt, der das Verhalten der KI steuert. "
-        "Beispiel: ‘Du bist ein Finanzberater auf Topniveau…’. "
-        "(Standard-Prompt vordefiniert)"
-    )
+    # Stepper für Workflow
+    step = st.session_state.get("step", 1)
+    if "step" not in st.session_state:
+        st.session_state.step = 1
 
-    # ── Sidebar: LLM-Einstellungen ─────────────────────────
-    with st.sidebar.expander("LLM-Einstellungen", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            provider_a = st.selectbox(
-                "Agent A Anbieter", ["OpenAI", "Gemini"], index=0,
-                help=agent_provider_help
-            )
-            model_a = st.selectbox(
-                "Agent A Modell",
-                ["gpt-3.5-turbo", "gpt-4"] if provider_a == "OpenAI" else ["gemini-proto"],
-                index=0,
-                help=agent_model_help
-            )
-            prompt_a = st.text_area(
-                "Prompt Agent A",
-                "Du bist ein Finanzberater auf Topniveau…",
-                height=100,
-                help=prompt_help
-            )
-        with col2:
-            # Für Gemini API-Key hinzufügen
-            provider_b = st.selectbox(
-                "Agent B Anbieter", ["OpenAI", "Gemini"], index=0,
-                help=agent_provider_help
-            )
-            model_b = st.selectbox(
-                "Agent B Modell",
-                ["gpt-3.5-turbo", "gpt-4"] if provider_b == "OpenAI" else ["gemini-proto"],
-                index=0,
-                help=agent_model_help
-            )
-            prompt_b = st.text_area(
-                "Prompt Agent B",
-                "Du bist ein Risikomanager auf Expert:innen-Level…",
-                height=100,
-                help=prompt_help
-            )
+    def next_step():
+        st.session_state.step += 1
+    def prev_step():
+        st.session_state.step -= 1
 
-    # ── Sidebar: Konsens-Einstellungen ──────────────────────
-    with st.sidebar.expander("Konsens-Einstellungen", expanded=False):
-        cfg = ConsensusConfig()  # Standard-Defaults laden
-        divergence_rounds = st.number_input(
-            "Divergenz-Runden", 1, 20, value=cfg.divergence_rounds,
-            help=(
-                "Anzahl der Runden (Standard: 3), in denen die KIs abwechselnd "
-                "neue Perspektiven liefern. Mehr Runden = mehr Vielfalt."
-            )
-        )
-        divergence_threshold = st.slider(
-            "Divergenz-Threshold", 0.0, 1.0, value=cfg.divergence_threshold,
-            help=(
-                "Steuert, wie unterschiedlich eine neue Antwort sein muss (Standard: 0.5). "
-                "Geringere Werte = stärker neue Ideen."
-            )
-        )
-        convergence_threshold = st.slider(
-            "Konvergenz-Threshold", 0.0, 1.0, value=cfg.convergence_threshold,
-            help=(
-                "Ab welchem Ähnlichkeitswert die Diskussion als Konsens gilt (Standard: 0.8). "
-                "Höhere Werte = strengere Einigung."
-            )
-        )
-        max_total = st.number_input(
-            "Max. Gesamt-Beiträge", 1, 50, value=cfg.max_rounds_total,
-            help=(
-                "Gesamtzahl der Nachrichten (Standard: 10), danach stoppt die Debatte automatisch."
-            )
-        )
-        manual_pause = st.checkbox(
-            "Manueller Stopp möglich", value=cfg.manual_pause,
-            help=(
-                "Ermöglicht dir, die Debatte jederzeit per Button zu beenden."
-            )
-        )
-        stop_on_manual = True
+    st.markdown("---")
+    cols = st.columns([1,1,1])
+    for i, label in enumerate(["1. Agents konfigurieren","2. Konsensregeln","3. Diskussion starten"], start=1):
+        if st.session_state.step == i:
+            cols[i-1].button(f"▶ {label}", on_click=lambda i=i: st.session_state.update({"step": i}))
+        else:
+            cols[i-1].button(label, on_click=lambda i=i: st.session_state.update({"step": i}))
+    st.markdown("---")
 
-    # ── Werte ins Config-Objekt schreiben ──────────────────
-    cfg.divergence_rounds = divergence_rounds
-    cfg.divergence_threshold = divergence_threshold
-    cfg.convergence_threshold = convergence_threshold
-    cfg.max_rounds_total = max_total
-    cfg.max_rounds = max_total               # legacy
-    cfg.similarity_threshold = convergence_threshold  # legacy
-    cfg.manual_pause = manual_pause
-    cfg.stop_on_manual = stop_on_manual
+    # STEP 1: Agents konfigurieren
+    if st.session_state.step == 1:
+        with st.expander("LLM Einstellungen", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                provider_a = st.selectbox("Agent Anbieter", ["OpenAI","Gemini"], key="provider_a")
+                model_a = st.selectbox("Modell", ["gpt-3.5-turbo","gpt-4"] if provider_a=="OpenAI" else ["gemini-proto"], key="model_a")
+                prompt_a = st.text_area("System-Prompt", "Du bist ein Experte...", key="prompt_a")
+            with col2:
+                provider_b = st.selectbox("Agent Anbieter", ["OpenAI","Gemini"], key="provider_b")
+                model_b = st.selectbox("Modell", ["gpt-3.5-turbo","gpt-4"] if provider_b=="OpenAI" else ["gemini-proto"], key="model_b")
+                prompt_b = st.text_area("System-Prompt", "Du bist ein Experte...", key="prompt_b")
+        if st.button("Weiter", on_click=next_step): pass
 
-    # ── Agenten instanziieren ──────────────────────────────
-    openai_key = st.secrets.get("openai_api_key", "")
-    gemini_key = st.secrets.get("gemini_api_key", "")
-    def make_agent(name, provider, model, prompt):
-        if provider == "OpenAI":
-            return OpenAIAdapter(name, openai_key, model=model, temperature=0.7)
-        # Für Gemini musst du in den App-Secrets 'gemini_api_key' setzen
-        return GeminiAdapter(name, gemini_key, model=model)
+    # STEP 2: Konsensregeln einstellen
+    elif st.session_state.step == 2:
+        with st.expander("Konsens-Einstellungen", expanded=True):
+            base = ConsensusConfig()
+            divergence_rounds = st.number_input("Divergenz-Runden",1,20, base.divergence_rounds, key="divergence_rounds")
+            divergence_threshold = st.slider("Divergenz-Threshold",0.0,1.0, base.divergence_threshold, key="divergence_threshold")
+            convergence_threshold = st.slider("Konvergenz-Threshold",0.0,1.0, base.convergence_threshold, key="convergence_threshold")
+            max_total = st.number_input("Max. Gesamt-Beiträge",1,50, base.max_rounds, key="max_rounds_total")
+            manual_pause = st.checkbox("Manueller Stopp möglich", value=base.manual_pause, key="manual_pause")
+        cols = st.columns(2)
+        if cols[0].button("Zurück", on_click=prev_step): pass
+        if cols[1].button("Weiter", on_click=next_step): pass
 
-    agent_a = make_agent("Agent A", provider_a, model_a, prompt_a)
-    agent_b = make_agent("Agent B", provider_b, model_b, prompt_b)
+    # STEP 3: Diskussion starten
+    else:
+        if st.button("Zurück", on_click=prev_step): pass
+        topic = st.text_area("Thema / Idee", key="topic")
+        if st.button("Diskussion starten"):
+            # Config befüllen
+            cfg = ConsensusConfig(
+                max_rounds=st.session_state.max_rounds_total,
+                similarity_threshold=st.session_state.convergence_threshold,
+                divergence_rounds=st.session_state.divergence_rounds,
+                divergence_threshold=st.session_state.divergence_threshold,
+                convergence_threshold=st.session_state.convergence_threshold,
+                max_rounds_total=st.session_state.max_rounds_total,
+                manual_pause=st.session_state.manual_pause,
+                stop_on_manual=True,
+                log_level=base.log_level
+            )
+            # Agents
+            openai_key = st.secrets.get("openai_api_key")
+            gemini_key = st.secrets.get("gemini_api_key")
+            def make_agent(name, provider, model, prompt):
+                if provider=="OpenAI": return OpenAIAdapter(name, openai_key, model, 0.7)
+                return GeminiAdapter(name, gemini_key, model, 0.7)
+            agent_a = make_agent("Agent A", st.session_state.provider_a, st.session_state.model_a, st.session_state.prompt_a)
+            agent_b = make_agent("Agent B", st.session_state.provider_b, st.session_state.model_b, st.session_state.prompt_b)
 
-    orchestrator = ConsensusOrchestrator(cfg)
-
-    # ── Hauptbereich: Thema eingeben & Diskussion starten ────
-    topic = st.text_area("Thema / Idee", height=120)
-    if st.button("Diskussion starten") and topic:
-        history = orchestrator.run(agent_a, agent_b, initial_prompt=topic)
-        # Finale Empfehlung anzeigen
-        final_agent, final_text = history[-1]
-        st.markdown("### Finale Empfehlung")
-        st.markdown(f"**{final_agent}:** {final_text}")
+            engine = ConsensusEngine(cfg)
+            history = engine.run(agent_a, agent_b, initial_prompt=st.session_state.topic)
+            final_agent, final_text = history[-1]
+            st.markdown("### Finale Empfehlung")
+            st.markdown(f"**{final_agent}:** {final_text}")
 
 if __name__ == "__main__":
     main()
