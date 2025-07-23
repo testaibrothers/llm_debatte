@@ -1,11 +1,24 @@
-# utils/similarity.py
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity as cs
+# consensus/consensus_config.py
+from dataclasses import dataclass, field
 
-# Einmaliger Vektorisierer für Effizienz
-tfidf = TfidfVectorizer()
+@dataclass
+class ConsensusConfig:
+    # Hard-Cap für alle Beiträge
+    max_rounds: int = field(default=10)
+    # Startwert für Konvergenz-Threshold (0.0–1.0)
+    similarity_threshold: float = field(default=0.8)
 
-def cosine_similarity(text1: str, text2: str) -> float:
-    vecs = tfidf.fit_transform([text1, text2])
-    score = cs(vecs[0:1], vecs[1:2])[0][0]
-    return float(score)
+    # Einstellungen Divergenz-Phase
+    divergence_rounds: int = field(default=3)
+    divergence_threshold: float = field(default=0.5)
+
+    # Einstellung Konvergenz-Phase
+    convergence_threshold: float = field(default=0.8)
+
+    # Weitere Abbruchkriterien
+    max_rounds_total: int = field(default=10)
+    manual_pause: bool = field(default=False)
+    stop_on_manual: bool = field(default=True)
+
+    # Logging-Level
+    log_level: str = field(default="INFO")
