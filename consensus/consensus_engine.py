@@ -23,7 +23,7 @@ class ConsensusEngine:
         self.history: List[Dict] = []
         self.scores: List[float] = []
 
-    def run_debate(self, question: str, agent_a, agent_b) -> Tuple[str, str]:
+    def run_debate(self, question: str, agent_a, agent_b) -> Tuple[str, str]:[str, str]:
         """
         Führt die Debatte mit zwei Agenten durch.
         """
