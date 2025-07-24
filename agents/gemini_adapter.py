@@ -4,22 +4,24 @@ from .agent_client import AgentClient
 
 class GeminiAdapter(AgentClient):
     """
-    Adapter für die Gemini-API. Sendet Prompts und erhält Antworten.
+    Adapter für die Gemini-API.
+    Aktuell nicht implementiert, gibt Platzhalter-Antwort zurück.
     """
     def __init__(self, name: str, api_key: str, model: str, temperature: float = 0.7):
         super().__init__(name, config={"model": model, "temperature": temperature})
         self.api_key = api_key
 
     def call(self, prompt: str) -> str:
-        url = "https://gemini.googleapis.com/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+                # Realer API-Aufruf an Gemini (Google Generative AI)
+        url = f"https://generativelanguage.googleapis.com/v1beta2/models/{self.config['model']}:generateMessage"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {
-            "model": self.config["model"],
-            "messages": [{"role": "system", "content": prompt}],
-            "temperature": self.config.get("temperature", 0.7)
+            "prompt": {"text": prompt},
+            "temperature": self.config.get("temperature", 0.7),
+            "candidateCount": 1
         }
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        # Annahme: Datenstruktur analog zu OpenAI
-        return data["choices"][0]["message"]["content"]
+        resp = requests.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        # Annahme: Antwort-Text im Feld "candidates"[0]["output"]
+        return data.get("candidates", [{}])[0].get("output", "")
